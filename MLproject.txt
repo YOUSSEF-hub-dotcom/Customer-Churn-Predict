@@ -1,0 +1,12 @@
+name: Telco_Churn_Prediction
+
+conda_env: conda.yaml
+
+entry_points:
+  main:
+    parameters:
+      iterations: {type: int, default: 1000}
+      learning_rate: {type: float, default: 0.03}
+      depth: {type: int, default: 6}
+    command: "python main.py --iterations {iterations} --learning_rate {learning_rate} --depth {depth}"
+

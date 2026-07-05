@@ -1,0 +1,16 @@
+name: churn_prediction_env
+channels:
+  - defaults
+  - conda-forge
+dependencies:
+  - python=3.13
+  - pip
+  - pip:
+      - mlflow
+      - catboost
+      - pandas
+      - numpy
+      - scikit-learn
+      - matplotlib
+      - seaborn
+      - ipywidgets
