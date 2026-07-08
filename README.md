@@ -201,7 +201,7 @@ The optimized, production-grade pipeline achieved highly stable and robust metri
 * **Cost-Efficient Targeting:** With a `Precision` of **56.70%**, anti-churn marketing spend is heavily optimized, significantly reducing "False Alarms" (wasting retention budget on customers who intend to stay).
 * **Production-Ready Stability:** The microscopic standard deviation across 5-fold cross-validation (`CV AUC Std = 0.85%`) mathematically proves the model's high stability and guarantees its performance won't degrade when facing real-time production streams.
 
-*🛡️ **Statistical Integrity Validation:** Unlike legacy notebook implementations where transformations are fitted globally, this ecosystem computes all mathematical treatments (`np.clip` for Outlier Capping and `np.sqrt` for Skewness Adjustment) exclusively on the Training Set and lazily transforms Test and real-time API streams via the MLflow PyFunc engine. This guarantees **Zero Data Leakage** and ensures live production performance perfectly matches training benchmarks.
+🛡️ **Statistical Integrity Validation:** Unlike legacy notebook implementations where transformations are fitted globally, this ecosystem computes all mathematical treatments (`np.clip` for Outlier Capping and `np.sqrt` for Skewness Adjustment) exclusively on the Training Set and lazily transforms Test and real-time API streams via the MLflow PyFunc engine. This guarantees **Zero Data Leakage** and ensures live production performance perfectly matches training benchmarks.
 ---
 
 ## 🎯 Business-Oriented Thresholding
