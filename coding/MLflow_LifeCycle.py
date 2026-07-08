@@ -7,6 +7,7 @@ import joblib
 import matplotlib.pyplot as plt
 import seaborn as sns
 import pandas as pd
+import numpy as np
 from sklearn.metrics import (
     accuracy_score,
     classification_report,
@@ -18,7 +19,10 @@ import logging
 logger = logging.getLogger("MLflow")
 
 def run_mlflow_tracking(results):
-
+    """
+    Synchronizes pipeline outputs with MLflow 2.x governance infrastructure. 
+    Encapsulates dynamic tracking, visualization uploads, and Quality Gate promotions.
+    """
     logger.info("--------------------------- Starting MLflow Tracking --------------------------")
 
     model = results["model"]
@@ -48,6 +52,18 @@ def run_mlflow_tracking(results):
         'StreamingMovies', 'Contract', 'PaperlessBilling', 'PaymentMethod', 
         'TechSupport_OnlineSecurity'
     ]
+
+    # Calculate dynamic bounding limits from the current baseline run for deployment scaling
+    outlier_bounds = {}
+    for col in ['tenure', 'MonthlyCharges', 'TotalCharges']:
+        # Sqrt values for TotalCharges need to mirror the state used during training
+        q1 = X_test[col].quantile(0.25)
+        q3 = X_test[col].quantile(0.75)
+        iqr = q3 - q1
+        outlier_bounds[col] = {
+            "lower": float(q1 - 1.5 * iqr),
+            "upper": float(q3 + 1.5 * iqr)
+        }
 
     accuracy = accuracy_score(y_test, y_pred)
     auc_score = roc_auc_score(y_test, y_prob)
@@ -85,7 +101,7 @@ def run_mlflow_tracking(results):
             "cv_auc_std": cv_auc_std
         })
 
-        # ---------------- Plots (Optimized to log directly from memory) ----------------
+        # ---------------- Plots (Logged directly from memory) ----------------
         logger.info("Saving and logging visualization artifacts directly...")
         
         # Confusion Matrix
@@ -126,7 +142,7 @@ def run_mlflow_tracking(results):
         mlflow.log_figure(fig_cc, "calibration_curve.png")
         plt.close(fig_cc)
 
-        # ---------------- JSON Artifacts (Optimized using log_dict) ----------------
+        # ---------------- JSON Artifacts ----------------
         logger.info("Exporting classification report and training info to MLflow Dashboard...")
         mlflow.log_dict(report_dict, "classification_report.json")
         mlflow.log_dict(fi.to_dict(orient="records"), "feature_importance.json")
@@ -139,21 +155,22 @@ def run_mlflow_tracking(results):
             "best_threshold": float(best_thresh),
             "scale_pos_weight": float(scale_pos_weight),
             "cv_auc_mean": cv_auc_mean,
-            "cv_auc_std": cv_auc_std
+            "cv_auc_std": cv_auc_std,
+            "outlier_bounds": outlier_bounds
         }
         mlflow.log_dict(training_info, "training_info.json")
 
         # ---------------- Save Model ----------------
-        # We still need local save for context.artifacts mapping in PyFunc
         joblib.dump(model, "catboost_model.pkl")
         mlflow.log_artifact("catboost_model.pkl")
 
-        # ---------------- PyFunc Wrapper ----------------
+        # ---------------- Production PyFunc Wrapper with Transformation Engine ----------------
         class ChurnPyFunc(mlflow.pyfunc.PythonModel):
 
-            def __init__(self, threshold, feature_columns):
+            def __init__(self, threshold, feature_columns, bounds):
                 self.threshold = threshold
                 self.feature_columns = feature_columns
+                self.bounds = bounds
 
             def load_context(self, context):
                 self.model = joblib.load(context.artifacts["model"])
@@ -162,11 +179,22 @@ def run_mlflow_tracking(results):
                 if not isinstance(model_input, pd.DataFrame):
                     model_input = pd.DataFrame(model_input, columns=self.feature_columns)
 
-                X = model_input[self.feature_columns]
+                X = model_input[self.feature_columns].copy()
+                
+                # Dynamic Firewall: Apply inference outlier clipping mapping matching train baselines
+                for col, limits in self.bounds.items():
+                    if col in X.columns:
+                        # If TotalCharges arrives raw at API, cap first based on training scale
+                        X[col] = np.clip(X[col], limits["lower"], limits["upper"])
+                
+                # Mathematical Alignment: Apply identical Square Root transformation to TotalCharges
+                if 'TotalCharges' in X.columns:
+                    X['TotalCharges'] = np.sqrt(X['TotalCharges'])
+
                 prob = self.model.predict_proba(X)[:, 1]
                 pred = (prob >= self.threshold).astype(int)
 
-                logger.info(f"Generated predictions for {len(model_input)} records using threshold {self.threshold}")
+                logger.info(f"Inference complete for {len(model_input)} records using decision boundary: {self.threshold}")
 
                 return pd.DataFrame({
                     "churn_prediction": pred,
@@ -185,17 +213,17 @@ def run_mlflow_tracking(results):
 
         signature = infer_signature(input_example, output_example)
 
-        # ---------------- Log PyFunc ----------------
+        # ---------------- Log PyFunc Model ----------------
         mlflow.pyfunc.log_model(
             artifact_path="churn_predictor_pyfunc",
-            python_model=ChurnPyFunc(best_thresh, X_COLUMNS),
+            python_model=ChurnPyFunc(best_thresh, X_COLUMNS, outlier_bounds),
             artifacts={"model": "catboost_model.pkl"},
             input_example=input_example,
             signature=signature,
             registered_model_name="Churn_Predictor_PyFunc"
         )
 
-        # ---------------- Registry & Promotion (Updated to MLflow 2.x standard) ----------------
+        # ---------------- Registry & Promotion (MLflow 2.x standard) ----------------
         client = MlflowClient()
         model_name = "Churn_Predictor_PyFunc"
         run_id = run.info.run_id
@@ -207,9 +235,8 @@ def run_mlflow_tracking(results):
         # Setting candidate alias as replacing the old staging status
         client.set_registered_model_alias(name=model_name, alias="candidate", version=version)
 
-        # Quality Gate Verification
+        # Quality Gate Verification Gateway
         if auc_score >= 0.80 and report_dict["1"]["recall"] >= 0.70:
-            # Setting champion alias replaces the old legacy 'Production' stage transition
             client.set_registered_model_alias(name=model_name, alias="champion", version=version)
             logger.info(
                 f" Model version {version} passed Quality Gate and promoted to 'champion' (AUC: {auc_score:.2f}, Recall: {report_dict['1']['recall']:.2f})"
@@ -220,6 +247,6 @@ def run_mlflow_tracking(results):
                 f"Metrics: AUC={auc_score:.2f} (Req: 0.80), Recall={report_dict['1']['recall']:.2f} (Req: 0.70)"
             )
 
-        logger.info(f" Model: {model_name} | Version: {version}")
+        logger.info(f" Model Governance Registry Update -> Name: {model_name} | Active Version: {version}")
 
         return run_id
