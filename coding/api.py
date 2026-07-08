@@ -2,6 +2,7 @@ import jwt
 import mlflow.pyfunc
 from datetime import datetime
 import pandas as pd
+import time  # Fixed: Added global import to prevent NameError in middleware and predict endpoint
 from fastapi import FastAPI, Depends, HTTPException, status, BackgroundTasks, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
@@ -14,15 +15,16 @@ from slowapi.errors import RateLimitExceeded
 from config import settings
 import logging
 
+# Configure application logging
 logging.basicConfig(
     filename="app_activity.log",
     level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s")
-
+    format="%(asctime)s - %(levelname)s - %(message)s"
+)
 logger = logging.getLogger("api")
 
 
-# DATABASE
+# DATABASE SETUP
 engine = create_engine(settings.DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
@@ -49,14 +51,14 @@ class PredictionLog(Base):
     __tablename__ = "prediction_logs"
     id = Column(Integer, primary_key=True, index=True)
     info = Column(Text)
-    prediction = Column(Integer) # 0 or 1
+    prediction = Column(Integer)
     probability = Column(Float)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
 Base.metadata.create_all(bind=engine)
 
-# Schema
+# PYDANTIC SCHEMAS
 
 class ChurnInput(BaseModel):
     Contract: str
@@ -71,11 +73,13 @@ class ChurnOutput(BaseModel):
     churn_prediction: int
     churn_probability: float
     threshold_used: float
+    latency_seconds: float  # Fixed: Added this field to match the returned dictionary and avoid FastAPI ValidationError
 
 class ErrorResponse(BaseModel):
     detail: str
 
 
+# MLFLOW MODEL LOADING
 try:
     mlflow_model = mlflow.pyfunc.load_model(settings.MODEL_URI)
     print(f" MLflow Model Loaded from: {settings.MODEL_URI}")
@@ -83,17 +87,17 @@ except Exception as e:
     mlflow_model = None
     print(f" Model Load Error: {e}")
 
-# Dependency
-
+# DEPENDENCY
 def get_db():
     db = SessionLocal()
     try:
-        yield db
+        value_yielded = db
+        yield value_yielded
     finally:
         db.close()
 
 
-# Rate Limiting
+# RATE LIMITING STRATEGY
 def get_smart_identifier(request: Request):
     auth_header = request.headers.get("Authorization")
     if auth_header and auth_header.startswith("Bearer "):
@@ -103,31 +107,22 @@ def get_smart_identifier(request: Request):
             user_id = payload.get("sub")
             if user_id:
                 return f"user:{user_id}"
-        except:
+        except Exception:
             pass
     return f"ip:{get_remote_address(request)}"
 
 
-# Intialize APP
+# INITIALIZE FASTAPI APP
 limiter = Limiter(key_func=get_smart_identifier)
 app = FastAPI(title="Customer Churn Prediction API")
 
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-"""
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-"""
-
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.ALLOWED_ORIGINS, 
-    allow_credentials=True,                 
+    allow_credentials=True,                  
     allow_methods=["GET", "POST", "PUT", "DELETE"],
     allow_headers=["*"],
 )
@@ -142,9 +137,7 @@ async def add_process_time_header(request: Request, call_next):
     return response
 
 
-
-# Feature Adapter
-
+# FEATURE ADAPTER (PIPELINE STRUCTURE REPLICATION)
 def build_full_feature_vector(user_data: dict) -> pd.DataFrame:
     tech_yes = "Yes" in user_data["TechSupport_OnlineSecurity"]
 
@@ -175,18 +168,15 @@ def build_full_feature_vector(user_data: dict) -> pd.DataFrame:
     return pd.DataFrame([full_data])
 
 
-import time  # تأكد إنك عامل import للمكتبة فوق
-
-
 @app.post(
     "/predict",
     response_model=ChurnOutput,
     responses={503: {"model": ErrorResponse}, 500: {"model": ErrorResponse}}
 )
-@limiter.limit("10/minute") # المكتبة دي بتجبرك تحط request تحتها
+@limiter.limit("10/minute")
 def predict_churn(
         input_data: ChurnInput,
-        request: Request,  # <--- لازم دي تكون موجودة هنا عشان الـ Limiter
+        request: Request,  
         background_tasks: BackgroundTasks,
         db: Session = Depends(get_db),
 ):
@@ -197,10 +187,10 @@ def predict_churn(
         raise HTTPException(status_code=503, detail="ML Model is not loaded or unavailable")
 
     try:
-        # تحويل البيانات
+        # Transform incoming data to full operational DataFrame
         df = build_full_feature_vector(input_data.dict())
 
-        # التوقع باستخدام MLflow
+        # Model Inference via MLflow Custom PyFunc Wrapper
         try:
             result = mlflow_model.predict(df).iloc[0]
         except Exception as e:
@@ -209,6 +199,12 @@ def predict_churn(
 
         churn_pred = int(result["churn_prediction"])
         churn_prob = float(result["churn_probability"])
+
+        # Dynamically extract optimized threshold from the loaded Custom PyFunc model context
+        try:
+            threshold_used = float(mlflow_model._model_impl.python_model.threshold)
+        except Exception:
+            threshold_used = 0.5  # Safe fallback if metadata extraction differs
 
         try:
             record = CustomerPrediction(
@@ -230,7 +226,7 @@ def predict_churn(
 
         execution_time = round(time.time() - start_time, 4)
 
-        # إضافة مهمة خلفية للسجل العام
+        # Append background task for decoupled logging
         log_summary = f"Contract: {input_data.Contract} | MonthlyCharges: {input_data.MonthlyCharges}"
         background_tasks.add_task(db_log_prediction, log_summary, churn_pred, churn_prob)
 
@@ -239,7 +235,7 @@ def predict_churn(
         return {
             "churn_prediction": churn_pred,
             "churn_probability": churn_prob,
-            "threshold_used": 0.5,
+            "threshold_used": threshold_used,
             "latency_seconds": execution_time
         }
 
@@ -268,7 +264,8 @@ def db_log_prediction(input_info: str, prediction: int, probability: float):
     finally:
         new_db.close()
 
-# CRUD
+
+# CRUD ENDPOINTS
 @app.get("/predictions")
 def get_predictions(db: Session = Depends(get_db)):
     return db.query(CustomerPrediction).order_by(CustomerPrediction.created_at.desc()).limit(10).all()
@@ -298,4 +295,4 @@ def delete_prediction(prediction_id: int, db: Session = Depends(get_db)):
 
 @app.get("/")
 def health():
-    return {"status": "API is running "}
+    return {"status": "API is running"}
