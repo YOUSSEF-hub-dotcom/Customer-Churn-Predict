@@ -54,7 +54,6 @@ def run_mlflow_tracking(results):
     report_dict = classification_report(y_test, y_pred, output_dict=True)
     logger.info(f"Logging metrics: AUC={auc_score:.4f}, F1={best_f1:.4f}")
 
-
     scale_pos_weight = model.get_params()["scale_pos_weight"]
 
     mlflow.set_experiment("Churn_Prediction_CatBoost")
@@ -86,70 +85,66 @@ def run_mlflow_tracking(results):
             "cv_auc_std": cv_auc_std
         })
 
-        # ---------------- Plots ----------------
-        logger.info("Saving and logging visualization artifacts (Confusion Matrix, Feature Importance)...")
-        plt.figure(figsize=(7, 5.5))
+        # ---------------- Plots (Optimized to log directly from memory) ----------------
+        logger.info("Saving and logging visualization artifacts directly...")
+        
+        # Confusion Matrix
+        fig_cm, ax_cm = plt.subplots(figsize=(7, 5.5))
         sns.heatmap(
             cm, annot=True, fmt="d", cmap="Blues",
             xticklabels=["Stayed (0)", "Churn (1)"],
-            yticklabels=["Stayed (0)", "Churn (1)"]
+            yticklabels=["Stayed (0)", "Churn (1)"],
+            ax=ax_cm
         )
-        plt.title("Confusion Matrix - Final Model")
-        plt.tight_layout()
-        plt.savefig("confusion_matrix.png", dpi=150)
-        mlflow.log_artifact("confusion_matrix.png")
-        plt.close()
+        ax_cm.set_title("Confusion Matrix - Final Model")
+        fig_cm.tight_layout()
+        mlflow.log_figure(fig_cm, "confusion_matrix.png")
+        plt.close(fig_cm)
 
-        plt.figure(figsize=(11, 8))
+        # Feature Importance
+        fig_fi, ax_fi = plt.subplots(figsize=(11, 8))
         sns.barplot(
             data=fi,
             x="Importances",
             y="Feature Id",
             hue="Feature Id",
-            legend=False
+            legend=False,
+            ax=ax_fi
         )
-        plt.title("Top 15 Feature Importances - CatBoost")
-        plt.tight_layout()
-        plt.savefig("feature_importance.png", dpi=150)
-        mlflow.log_artifact("feature_importance.png")
-        plt.close()
+        ax_fi.set_title("Top 15 Feature Importances - CatBoost")
+        fig_fi.tight_layout()
+        mlflow.log_figure(fig_fi, "feature_importance.png")
+        plt.close(fig_fi)
 
+        # Calibration Curve
         prob_true, prob_pred = calibration_curve(y_test, y_prob, n_bins=10)
+        fig_cc, ax_cc = plt.subplots(figsize=(7, 6))
+        ax_cc.plot(prob_pred, prob_true, marker="o", label="CatBoost")
+        ax_cc.plot([0, 1], [0, 1], linestyle="--", color="gray")
+        ax_cc.set_title("Probability Calibration Curve")
+        fig_cc.tight_layout()
+        mlflow.log_figure(fig_cc, "calibration_curve.png")
+        plt.close(fig_cc)
 
-        plt.figure(figsize=(7, 6))
-        plt.plot(prob_pred, prob_true, marker="o", label="CatBoost")
-        plt.plot([0, 1], [0, 1], linestyle="--", color="gray")
-        plt.title("Probability Calibration Curve")
-        plt.tight_layout()
-        plt.savefig("calibration_curve.png", dpi=150)
-        mlflow.log_artifact("calibration_curve.png")
-        plt.close()
-
-        # ---------------- JSON Artifacts ----------------
-        logger.info("Exporting classification report and training info to JSON...")
-
-        with open("classification_report.json", "w") as f:
-            json.dump(report_dict, f, indent=2)
-        mlflow.log_artifact("classification_report.json")
-
-        with open("feature_importance.json", "w") as f:
-            json.dump(fi.to_dict(orient="records"), f, indent=2)
-        mlflow.log_artifact("feature_importance.json")
-
-        with open("training_info.json", "w") as f:
-            json.dump({
-                "target": "Churn",
-                "features": X_COLUMNS,
-                "categorical_features": CATEGORICAL_FEATURES,
-                "best_iteration": int(model.get_best_iteration()),
-                "best_threshold": float(best_thresh),
-                "scale_pos_weight": float(scale_pos_weight),
-                "cv_auc_mean": cv_auc_mean,
-                "cv_auc_std": cv_auc_std
-            }, f, indent=2)
-        mlflow.log_artifact("training_info.json")
+        # ---------------- JSON Artifacts (Optimized using log_dict) ----------------
+        logger.info("Exporting classification report and training info to MLflow Dashboard...")
+        mlflow.log_dict(report_dict, "classification_report.json")
+        mlflow.log_dict(fi.to_dict(orient="records"), "feature_importance.json")
+        
+        training_info = {
+            "target": "Churn",
+            "features": X_COLUMNS,
+            "categorical_features": CATEGORICAL_FEATURES,
+            "best_iteration": int(model.get_best_iteration()),
+            "best_threshold": float(best_thresh),
+            "scale_pos_weight": float(scale_pos_weight),
+            "cv_auc_mean": cv_auc_mean,
+            "cv_auc_std": cv_auc_std
+        }
+        mlflow.log_dict(training_info, "training_info.json")
 
         # ---------------- Save Model ----------------
+        # We still need local save for context.artifacts mapping in PyFunc
         joblib.dump(model, "catboost_model.pkl")
         mlflow.log_artifact("catboost_model.pkl")
 
@@ -171,7 +166,6 @@ def run_mlflow_tracking(results):
                 prob = self.model.predict_proba(X)[:, 1]
                 pred = (prob >= self.threshold).astype(int)
 
-
                 logger.info(f"Generated predictions for {len(model_input)} records using threshold {self.threshold}")
 
                 return pd.DataFrame({
@@ -181,7 +175,6 @@ def run_mlflow_tracking(results):
 
         # ---------------- Signature ----------------
         input_example = X_test[X_COLUMNS].head(3)
-
         prob_example = model.predict_proba(input_example)[:, 1]
         pred_example = (prob_example >= best_thresh).astype(int)
 
@@ -202,7 +195,7 @@ def run_mlflow_tracking(results):
             registered_model_name="Churn_Predictor_PyFunc"
         )
 
-        # ---------------- Registry & Promotion ----------------
+        # ---------------- Registry & Promotion (Updated to MLflow 2.x standard) ----------------
         client = MlflowClient()
         model_name = "Churn_Predictor_PyFunc"
         run_id = run.info.run_id
@@ -211,22 +204,16 @@ def run_mlflow_tracking(results):
         registered_model = mlflow.register_model(model_uri, model_name)
         version = registered_model.version
 
-        client.transition_model_version_stage(
-            name=model_name,
-            version=version,
-            stage="Staging",
-            archive_existing_versions=False
-        )
+        # Setting candidate alias as replacing the old staging status
+        client.set_registered_model_alias(name=model_name, alias="candidate", version=version)
 
+        # Quality Gate Verification
         if auc_score >= 0.80 and report_dict["1"]["recall"] >= 0.70:
-            client.transition_model_version_stage(
-                name=model_name,
-                version=version,
-                stage="Production",
-                archive_existing_versions=True
-            )
+            # Setting champion alias replaces the old legacy 'Production' stage transition
+            client.set_registered_model_alias(name=model_name, alias="champion", version=version)
             logger.info(
-                f" Model version {version} passed Quality Gate (AUC: {auc_score:.2f}, Recall: {report_dict['1']['recall']:.2f})")
+                f" Model version {version} passed Quality Gate and promoted to 'champion' (AUC: {auc_score:.2f}, Recall: {report_dict['1']['recall']:.2f})"
+            )
         else:
             logger.warning(
                 f" Quality Gate failed for version {version}. "
