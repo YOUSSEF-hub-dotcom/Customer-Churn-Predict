@@ -1,13 +1,22 @@
 import matplotlib.pyplot as plt
+import sns as sns
 import seaborn as sns
 import pandas as pd
 import logging
 
+# Initialize logger for advanced analytics and segmentation insights
 logger = logging.getLogger("EDA_2")
 
 def advanced_eda(df):
+    """
+    Performs Advanced Bivariate and Multivariate Exploratory Data Analysis (EDA)
+    to extract deep customer segments and churn drivers.
+    """
     logger.info("============ Advanced Exploratory Data Analysis & Churn Insights ============")
 
+    # -------------------------------------------------------------------------
+    # 1. Impact of Contract Type on Churn
+    # -------------------------------------------------------------------------
     logger.info("What is the impact of “Contract Type” on Customer Churn?")
     contract_churn = df.groupby(['Contract', 'Churn']).size().unstack()
     contract_churn_percent = contract_churn.div(contract_churn.sum(axis=1), axis=0) * 100
@@ -17,15 +26,18 @@ def advanced_eda(df):
     logger.info("Churn percentage by Contract Type:")
     print(contract_churn_percent)
 
+    plt.figure(figsize=(8, 5))
     contract_churn_percent.plot(kind='bar', stacked=True, color=['#5DADE2', '#E74C3C'])
     plt.title("Impact of Contract Type on Customer Churn")
     plt.xlabel("Contract Type")
     plt.ylabel("Percentage of Customers")
     plt.legend(["Stayed (0)", "Churned (1)"], loc='upper right')
-    plt.grid(axis='y')
+    plt.grid(axis='y', linestyle='--', alpha=0.7)
     plt.show()
 
-
+    # -------------------------------------------------------------------------
+    # 2. Impact of Online Security on Churn
+    # -------------------------------------------------------------------------
     logger.info("Does having “Online Security” reduce the likelihood of churn?")
     security_churn = df.groupby(['OnlineSecurity', 'Churn']).size().unstack()
     security_churn_percent = security_churn.div(security_churn.sum(axis=1), axis=0) * 100
@@ -35,15 +47,18 @@ def advanced_eda(df):
     logger.info("Percentage of Online Security:")
     print(security_churn_percent)
 
+    plt.figure(figsize=(8, 5))
     security_churn_percent.plot(kind='bar', stacked=True, color=['#5DADE2', '#E74C3C'])
     plt.title("Impact of Online Security on Customer Churn")
-    plt.xlabel("Online Security (0 = No, 1 = Yes)")
+    plt.xlabel("Online Security")
     plt.ylabel("Percentage of Customers")
     plt.legend(["Stayed (0)", "Churned (1)"], loc='upper right')
-    plt.grid(axis='y')
+    plt.grid(axis='y', linestyle='--', alpha=0.7)
     plt.show()
 
-
+    # -------------------------------------------------------------------------
+    # 3. Impact of Tech Support Availability on Churn
+    # -------------------------------------------------------------------------
     logger.info("How does “Tech Support” availability affect churn rates?")
     tech_churn = df.groupby(['TechSupport', 'Churn']).size().unstack()
     tech_churn_percent = tech_churn.div(tech_churn.sum(axis=1), axis=0) * 100
@@ -53,15 +68,18 @@ def advanced_eda(df):
     logger.info("Percentage of Tech Support:")
     print(tech_churn_percent)
 
+    plt.figure(figsize=(8, 5))
     tech_churn_percent.plot(kind='bar', stacked=True, color=['#5DADE2', '#E74C3C'])
     plt.title("Impact of Tech Support on Customer Churn")
-    plt.xlabel("Tech Support (0 = No, 1 = Yes)")
+    plt.xlabel("Tech Support")
     plt.ylabel("Percentage of Customers")
     plt.legend(["Stayed (0)", "Churned (1)"], loc='upper right')
-    plt.grid(axis='y')
+    plt.grid(axis='y', linestyle='--', alpha=0.7)
     plt.show()
 
-
+    # -------------------------------------------------------------------------
+    # 4. Impact of Internet Service Type on Churn
+    # -------------------------------------------------------------------------
     logger.info("Are customers with 'Fiber Optic' internet more likely to churn than DSL users?")
     internet_churn = df.groupby(['InternetService', 'Churn']).size().unstack()
     internet_churn_percent = internet_churn.div(internet_churn.sum(axis=1), axis=0) * 100
@@ -71,19 +89,22 @@ def advanced_eda(df):
     logger.info("Percentage by Internet Service:")
     print(internet_churn_percent)
 
+    plt.figure(figsize=(8, 5))
     internet_churn_percent.plot(kind='bar', stacked=True, color=['#5DADE2', '#E74C3C'])
     plt.title("Impact of Internet Service Type on Customer Churn")
     plt.xlabel("Internet Service Type")
     plt.ylabel("Percentage of Customers")
     plt.legend(["Stayed (0)", "Churned (1)"], loc='upper right')
-    plt.grid(axis='y')
+    plt.grid(axis='y', linestyle='--', alpha=0.7)
     plt.show()
 
-
+    # -------------------------------------------------------------------------
+    # 5. Binning and Analyzing Monthly Charges
+    # -------------------------------------------------------------------------
     logger.info("Do customers with higher “Monthly Charges” have higher churn?")
-    bins = [0, 35, 70, 120]
-    labels = ['Low', 'Medium', 'High']
-    df['MonthlyChargesCategory'] = pd.cut(df['MonthlyCharges'], bins=bins, labels=labels)
+    bins_monthly = [0, 35, 70, 120]
+    labels_monthly = ['Low', 'Medium', 'High']
+    df['MonthlyChargesCategory'] = pd.cut(df['MonthlyCharges'], bins=bins_monthly, labels=labels_monthly)
 
     monthly_churn = df.groupby(['MonthlyChargesCategory', 'Churn']).size().unstack()
     monthly_churn_percent = monthly_churn.div(monthly_churn.sum(axis=1), axis=0) * 100
@@ -93,19 +114,22 @@ def advanced_eda(df):
     logger.info("Percentage by Monthly Charges Category:")
     print(monthly_churn_percent)
 
+    plt.figure(figsize=(8, 5))
     monthly_churn_percent.plot(kind='bar', stacked=True, color=['#5DADE2', '#E74C3C'])
     plt.title("Impact of Monthly Charges on Customer Churn")
     plt.xlabel("Monthly Charges Category")
     plt.ylabel("Percentage of Customers")
     plt.legend(["Stayed (0)", "Churned (1)"], loc='upper right')
-    plt.grid(axis='y')
+    plt.grid(axis='y', linestyle='--', alpha=0.7)
     plt.show()
 
-
+    # -------------------------------------------------------------------------
+    # 6. Binning and Analyzing Total Charges
+    # -------------------------------------------------------------------------
     logger.info("Impact of Total Charges on Customer Churn")
-    bins = [0, 500, 1500, 3000, 9000]
-    labels = ['Very Low', 'Low', 'Medium', 'High']
-    df['TotalChargesCategory'] = pd.cut(df['TotalCharges'], bins=bins, labels=labels)
+    bins_total = [0, 500, 1500, 3000, 9000]
+    labels_total = ['Very Low', 'Low', 'Medium', 'High']
+    df['TotalChargesCategory'] = pd.cut(df['TotalCharges'], bins=bins_total, labels=labels_total)
 
     total_churn = df.groupby(['TotalChargesCategory', 'Churn']).size().unstack()
     total_churn_percent = total_churn.div(total_churn.sum(axis=1), axis=0) * 100
@@ -115,19 +139,22 @@ def advanced_eda(df):
     logger.info("Percentage by Total Charges Category:")
     print(total_churn_percent.round(2))
 
+    plt.figure(figsize=(8, 5))
     total_churn_percent.plot(kind='bar', stacked=True, color=['#5DADE2', '#E74C3C'])
     plt.title("Impact of Total Charges on Customer Churn")
     plt.xlabel("Total Charges Category")
     plt.ylabel("Percentage of Customers")
     plt.legend(["Stayed (0)", "Churned (1)"], loc='upper right')
-    plt.grid(axis='y')
+    plt.grid(axis='y', linestyle='--', alpha=0.7)
     plt.show()
 
-
+    # -------------------------------------------------------------------------
+    # 7. Impact of Tenure Lifecycles on Churn
+    # -------------------------------------------------------------------------
     logger.info("How does 'Tenure' influence churn probability?")
-    bins = [0, 12, 24, 48, 72]
-    labels = ['0-12 months', '13-24 months', '25-48 months', '49-72 months']
-    df['TenureCategory'] = pd.cut(df['tenure'], bins=bins, labels=labels)
+    bins_tenure = [0, 12, 24, 48, 72]
+    labels_tenure = ['0-12 months', '13-24 months', '25-48 months', '49-72 months']
+    df['TenureCategory'] = pd.cut(df['tenure'], bins=bins_tenure, labels=labels_tenure)
 
     tenure_churn = df.groupby(['TenureCategory', 'Churn']).size().unstack()
     tenure_churn_percent = tenure_churn.div(tenure_churn.sum(axis=1), axis=0) * 100
@@ -137,15 +164,18 @@ def advanced_eda(df):
     logger.info("Percentage by Tenure Category:")
     print(tenure_churn_percent)
 
+    plt.figure(figsize=(8, 5))
     tenure_churn_percent.plot(kind='bar', stacked=True, color=['#5DADE2', '#E74C3C'])
     plt.title("Impact of Tenure on Customer Churn")
     plt.xlabel("Tenure Category")
     plt.ylabel("Percentage of Customers")
     plt.legend(["Stayed (0)", "Churned (1)"], loc='upper right')
-    plt.grid(axis='y')
+    plt.grid(axis='y', linestyle='--', alpha=0.7)
     plt.show()
 
-
+    # -------------------------------------------------------------------------
+    # 8. Impact of Payment Methods on Churn
+    # -------------------------------------------------------------------------
     logger.info("Does 'Payment Method' influence churn?")
     payment_churn = df.groupby(['PaymentMethod', 'Churn']).size().unstack()
     payment_churn_percent = payment_churn.div(payment_churn.sum(axis=1), axis=0) * 100
@@ -155,15 +185,20 @@ def advanced_eda(df):
     logger.info("Percentage by Payment Method:")
     print(payment_churn_percent)
 
+    plt.figure(figsize=(8, 5))
     payment_churn_percent.plot(kind='bar', stacked=True, color=['#5DADE2', '#E74C3C'])
     plt.title("Impact of Payment Method on Customer Churn")
     plt.xlabel("Payment Method")
     plt.ylabel("Percentage of Customers")
     plt.legend(["Stayed (0)", "Churned (1)"], loc='upper right')
-    plt.grid(axis='y')
+    plt.xticks(rotation=45)
+    plt.grid(axis='y', linestyle='--', alpha=0.7)
+    plt.tight_layout()
     plt.show()
 
-
+    # -------------------------------------------------------------------------
+    # 9. Paperless Billing Behavior Interaction
+    # -------------------------------------------------------------------------
     logger.info("Does the presence of Paperless Billing affect customer churn?")
     paperless = df.groupby(['PaperlessBilling', 'Churn']).size().unstack()
     paperless_percent = paperless.div(paperless.sum(axis=1), axis=0) * 100
@@ -173,21 +208,24 @@ def advanced_eda(df):
     logger.info("Percentage by Paperless Billing:")
     print(paperless_percent)
 
+    plt.figure(figsize=(8, 5))
     paperless_percent.plot(kind='bar', stacked=True, color=['#5DADE2', '#E74C3C'])
     plt.title("Impact of Paperless Billing on Customer Churn")
     plt.xlabel("Paperless Billing")
     plt.ylabel("Percentage of Customers")
     plt.legend(["Stayed (0)", "Churned (1)"], loc='upper right')
-    plt.grid(axis='y')
+    plt.grid(axis='y', linestyle='--', alpha=0.7)
     plt.show()
 
-
+    # -------------------------------------------------------------------------
+    # 10. Total Mapped Services Count Feature Interaction (Corrected Logic)
+    # -------------------------------------------------------------------------
     logger.info("Do customers with multiple services churn less?")
     df['NumServices'] = (
         (df['PhoneService'] == 1).astype(int) +
         (df['InternetService'] != 'No').astype(int) +
-        (df['StreamingTV'] == 1).astype(int) +
-        (df['StreamingMovies'] == 1).astype(int)
+        (df['StreamingTV'] == 'Yes').astype(int) +  # Corrected text comparison
+        (df['StreamingMovies'] == 'Yes').astype(int)  # Corrected text comparison
     )
 
     services_churn = df.groupby(['NumServices', 'Churn']).size().unstack(fill_value=0)
@@ -198,15 +236,18 @@ def advanced_eda(df):
     logger.info("Percentage by Number of Services:")
     print(services_churn_percent)
 
+    plt.figure(figsize=(8, 5))
     services_churn_percent.plot(kind='bar', stacked=True, color=['#5DADE2', '#E74C3C'])
     plt.title("Impact of Number of Services on Customer Churn")
     plt.xlabel("Number of Services")
     plt.ylabel("Percentage of Customers")
     plt.legend(["Stayed (0)", "Churned (1)"], loc='upper right')
-    plt.grid(axis='y')
+    plt.grid(axis='y', linestyle='--', alpha=0.7)
     plt.show()
 
-
+    # -------------------------------------------------------------------------
+    # 11. Device Protection Feature Analysis
+    # -------------------------------------------------------------------------
     logger.info("Do customers with 'Device Protection' have lower churn rates?")
     device_protection_churn = df.groupby(['DeviceProtection', 'Churn']).size().unstack()
     device_protection_churn_percent = device_protection_churn.div(device_protection_churn.sum(axis=1), axis=0) * 100
@@ -216,15 +257,18 @@ def advanced_eda(df):
     logger.info("Percentage by Device Protection:")
     print(device_protection_churn_percent)
 
+    plt.figure(figsize=(8, 5))
     device_protection_churn_percent.plot(kind='bar', stacked=True, color=['#5DADE2', '#E74C3C'])
     plt.title("Impact of Device Protection on Customer Churn")
     plt.xlabel("Device Protection")
     plt.ylabel("Percentage of Customers")
     plt.legend(["Stayed (0)", "Churned (1)"], loc='upper right')
-    plt.grid(axis='y')
+    plt.grid(axis='y', linestyle='--', alpha=0.7)
     plt.show()
 
-
+    # -------------------------------------------------------------------------
+    # 12. Multivariate Combo Feature: TechSupport + OnlineSecurity
+    # -------------------------------------------------------------------------
     logger.info("How does 'TechSupport + OnlineSecurity' combination affect churn?")
     df['TechSupport_OnlineSecurity'] = df['TechSupport'].astype(str) + "_" + df['OnlineSecurity'].astype(str)
 
@@ -236,15 +280,20 @@ def advanced_eda(df):
     logger.info("Percentage by combination:")
     print(combo_churn_percent)
 
+    plt.figure(figsize=(8, 5))
     combo_churn_percent.plot(kind='bar', stacked=True, color=['#5DADE2', '#E74C3C'])
     plt.title("Impact of TechSupport + OnlineSecurity on Customer Churn")
-    plt.xlabel("TechSupport + OnlineSecurity (0=No, 1=Yes)")
+    plt.xlabel("TechSupport + OnlineSecurity")
     plt.ylabel("Percentage of Customers")
     plt.legend(["Stayed (0)", "Churned (1)"], loc='upper right')
-    plt.grid(axis='y')
+    plt.xticks(rotation=45)
+    plt.grid(axis='y', linestyle='--', alpha=0.7)
+    plt.tight_layout()
     plt.show()
 
-
+    # -------------------------------------------------------------------------
+    # 13. Multivariate Combo Feature: InternetService + MonthlyCharges Segment
+    # -------------------------------------------------------------------------
     logger.info("Does InternetService type combined with MonthlyCharges affect churn?")
     df['ChargesSegment'] = pd.cut(df['MonthlyCharges'], bins=[0, 40, 70, 150], labels=['Low', 'Medium', 'High'])
     df['Internet_Charges'] = df['InternetService'].astype(str) + "_" + df['ChargesSegment'].astype(str)
@@ -255,6 +304,7 @@ def advanced_eda(df):
     print(internet_charges_churn)
 
     plt.figure(figsize=(12, 6))
+    # Selected index 1 explicitly to map the true Churn segment percentages
     sns.barplot(data=internet_charges_churn.reset_index(), x='Internet_Charges', y=1, palette='Reds')
     plt.title("Churn % by Internet Service + Monthly Charges Segment")
     plt.xlabel("Internet Service + Charges Category")
@@ -263,15 +313,18 @@ def advanced_eda(df):
     plt.tight_layout()
     plt.show()
 
-
+    # -------------------------------------------------------------------------
+    # 14. High-Risk Combo Segment: Short Tenure + High Charges (Preventing Warnings)
+    # -------------------------------------------------------------------------
     logger.info("Are customers with short tenure but high monthly charges the most likely to churn?")
     df['TenureCategory'] = pd.cut(df['tenure'], bins=[0, 12, 24, 48, 72], labels=["0-12", "13-24", "25-48", "49-72"])
     df['MonthlyChargesCategory'] = pd.cut(df['MonthlyCharges'], bins=[0, 35, 70, 120], labels=["Low", "Medium", "High"])
 
-    df = df.dropna(subset=['TenureCategory', 'MonthlyChargesCategory'])
+    # Applied .copy() explicitly to avoid SettingWithCopyWarning during feature assignment
+    df_filtered = df.dropna(subset=['TenureCategory', 'MonthlyChargesCategory']).copy()
 
-    df['Tenure_Monthly'] = df['TenureCategory'].astype(str) + "_" + df['MonthlyChargesCategory'].astype(str)
-    tenure_monthly_churn = df.groupby('Tenure_Monthly')['Churn'].value_counts(normalize=True).unstack().fillna(0) * 100
+    df_filtered['Tenure_Monthly'] = df_filtered['TenureCategory'].astype(str) + "_" + df_filtered['MonthlyChargesCategory'].astype(str)
+    tenure_monthly_churn = df_filtered.groupby('Tenure_Monthly')['Churn'].value_counts(normalize=True).unstack().fillna(0) * 100
 
     logger.info("Percentage of Churn by Tenure + Monthly Charges combination:")
     print(tenure_monthly_churn)
@@ -285,16 +338,20 @@ def advanced_eda(df):
     plt.tight_layout()
     plt.show()
 
-
+    # -------------------------------------------------------------------------
+    # 15. Demographic Interaction: Senior Citizen Risk Distribution
+    # -------------------------------------------------------------------------
     logger.info("Are senior citizens more likely to churn compared to younger customers?")
-    churn_rates = df.groupby('SeniorCitizen')['Churn'].value_counts(normalize=True).unstack() * 100
+    churn_rates = df_filtered.groupby('SeniorCitizen')['Churn'].value_counts(normalize=True).unstack() * 100
     print(churn_rates)
 
-    churn_rates.plot(kind='bar', color=['#5DADE2', '#E74C3C'], figsize=(8, 5))
+    plt.figure(figsize=(8, 5))
+    churn_rates.plot(kind='bar', color=['#5DADE2', '#E74C3C'])
     plt.title("Churn Rate: Senior Citizens vs Younger Customers")
     plt.xlabel("SeniorCitizen (0 = Not Senior, 1 = Senior)")
     plt.ylabel("Percentage (%)")
     plt.legend(["Stayed (0)", "Churned (1)"])
+    plt.xticks(rotation=0)
     plt.show()
 
     logger.info("============ Advanced EDA Completed ============")
