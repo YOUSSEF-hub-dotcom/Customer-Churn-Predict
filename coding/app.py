@@ -4,14 +4,21 @@ import pandas as pd
 import plotly.graph_objects as go
 import plotly.express as px
 
-# إعدادات الصفحة
+# Configure global Streamlit page layouts and identity tokens
 st.set_page_config(page_title="Customer Churn Prediction Pro", page_icon="📉", layout="wide")
 
+# Target backend API server routing destination URI
 API_BASE_URL = "http://127.0.0.1:8000"
 
 
-# دالة مؤشر المخاطرة
-def plot_risk_gauge(probability):
+def plot_risk_gauge(probability, threshold):
+    """
+    Generates an interactive Plotly Gauge indicator chart.
+    Dynamically maps color decision boundaries around the model's optimized operational threshold.
+    """
+    # Transform numeric ratio boundaries to absolute percentage spaces
+    thresh_pct = threshold * 100
+    
     fig = go.Figure(go.Indicator(
         mode="gauge+number",
         value=probability * 100,
@@ -20,9 +27,9 @@ def plot_risk_gauge(probability):
             'axis': {'range': [0, 100]},
             'bar': {'color': "black"},
             'steps': [
-                {'range': [0, 30], 'color': "#d4edda"},  # Safe
-                {'range': [30, 70], 'color': "#fff3cd"},  # Warning
-                {'range': [70, 100], 'color': "#f8d7da"}  # High Risk
+                {'range': [0, thresh_pct - 10], 'color': "#d4edda"},              # Safe Green Zone
+                {'range': [thresh_pct - 10, thresh_pct + 10], 'color': "#fff3cd"}, # Uncertain/Frontier Boundary Warning Zone
+                {'range': [thresh_pct + 10, 100], 'color': "#f8d7da"}             # High Risk Critical Zone
             ],
         }
     ))
@@ -30,17 +37,21 @@ def plot_risk_gauge(probability):
     return fig
 
 
-# --- واجهة المستخدم ---
+# ==============================================================================
+# USER INTERFACE GRAPHICAL ARCHITECTURE
+# ==============================================================================
 st.title("📉 Customer Churn Analytics Dashboard")
-st.markdown("Predict customer behavior and analyze retention trends.")
+st.markdown("Predict customer behavior and analyze retention trends using production-grade ML pipeline.")
 
+# --- Sidebar Control Center ---
 with st.sidebar:
     st.image("https://cdn-icons-png.flaticon.com/512/3208/3208726.png", width=100)
     st.title("System Status")
-    st.success("Model: Logistic Regression/XGBoost ✅")
-    st.info("The model analyzes contract type, charges, and tenure to predict loyalty.")
+    # Updated: Aligned documentation text with the actual active CatBoost engine core
+    st.success("Model: CatBoostClassifier (Production) 🚀")
+    st.info("The production pipeline analyzes live contract structures, telemetry charges, and tenure bounds dynamically.")
 
-# فورم الإدخال (نفس اللي معاك مع تنظيم Columns)
+# --- Real-Time Single Customer Evaluation Form ---
 with st.form("churn_form"):
     st.subheader("📌 Customer Input Features")
     col1, col2, col3 = st.columns(3)
@@ -62,6 +73,7 @@ with st.form("churn_form"):
                                               ["Yes_Yes", "Yes_No", "No_Yes", "No_No"])
     submitted = st.form_submit_button("🚀 Run Churn Analysis", type="primary", use_container_width=True)
 
+# --- Process Single Inbound Inference Request Payload ---
 if submitted:
     payload = {
         "Contract": Contract, "tenure": tenure, "InternetService": InternetService,
@@ -69,60 +81,75 @@ if submitted:
         "TechSupport_OnlineSecurity": TechSupport_OnlineSecurity, "TotalCharges": TotalCharges
     }
 
-    with st.spinner("🔍 Calculating Risk..."):
+    with st.spinner("🔍 Calculating Risk Profile..."):
         try:
             response = requests.post(f"{API_BASE_URL}/predict", json=payload)
             if response.status_code == 200:
                 result = response.json()
                 prob = result['churn_probability']
+                threshold = result.get('threshold_used', 0.5) # Extract the dynamic threshold used by the PyFunc model
 
                 st.divider()
                 c1, c2 = st.columns([1, 1.5])
 
                 with c1:
                     st.subheader("Prediction Detail")
-                    status = "CHURN ❌" if result['churn_prediction'] == 1 else "STAY ✅"
+                    status_str = "CHURN ❌" if result['churn_prediction'] == 1 else "STAY ✅"
                     color = "red" if result['churn_prediction'] == 1 else "green"
-                    st.markdown(f"### Decision: <span style='color:{color}'>{status}</span>", unsafe_allow_html=True)
+                    st.markdown(f"### Decision: <span style='color:{color}'>{status_str}</span>", unsafe_allow_html=True)
                     st.metric("Probability Score", f"{prob:.2%}")
+                    st.markdown(f"**Decision Threshold Implemented:** `{threshold:.2f}`")
                     st.caption(f"Analysis completed in {result.get('latency_seconds', 0)}s")
 
                 with c2:
-                    st.plotly_chart(plot_risk_gauge(prob), use_container_width=True)
+                    st.plotly_chart(plot_risk_gauge(prob, threshold), use_container_width=True)
             else:
-                st.error("API Error.")
+                st.error(f"API Error. Status Code: {response.status_code}")
         except Exception as e:
             st.error(f"Connection Error: {e}")
 
-# --- الـ History والرسوم البيانية العامة ---
+
+# ==============================================================================
+# GLOBAL HISTORICAL TELEMETRY AUDIT LOGS & VISUALIZATIONS
+# ==============================================================================
 st.divider()
 st.subheader("📊 Global Retention Insights")
 
-if st.button("🔄 Refresh Dashboard Data", use_container_width=True):
-    try:
-        history_res = requests.get(f"{API_BASE_URL}/predictions")
-        if history_res.status_code == 200:
-            df = pd.DataFrame(history_res.json())
-            if not df.empty:
-                col_pie, col_scatter = st.columns(2)
+# Fixed: Trigger automatic historical data loading on initial page render initialization
+try:
+    history_res = requests.get(f"{API_BASE_URL}/predictions")
+    if history_res.status_code == 200:
+        df = pd.DataFrame(history_res.json())
+        if not df.empty:
+            
+            # Context reload mechanism action triggers
+            if st.button("🔄 Trigger Cache Refresh", use_container_width=False):
+                st.rerun()
 
-                with col_pie:
-                    # Pie Chart لتوزيع الـ Churn
-                    churn_counts = df['churn_prediction'].replace({1: 'Churn', 0: 'Stay'}).value_counts()
-                    fig_pie = px.pie(values=churn_counts.values, names=churn_counts.index,
-                                     title="Overall Churn Distribution", hole=0.4)
-                    st.plotly_chart(fig_pie, use_container_width=True)
+            col_pie, col_scatter = st.columns(2)
 
-                with col_scatter:
-                    # Scatter Plot للعلاقة بين التكلفة والمدة
-                    fig_scatter = px.scatter(df, x="tenure", y="MonthlyCharges", color="churn_prediction",
-                                             title="Charges vs Tenure (Colored by Churn)",
-                                             labels={'churn_prediction': 'Churn (1=Yes)'})
-                    st.plotly_chart(fig_scatter, use_container_width=True)
+            with col_pie:
+                # Distribution analysis: Categorical distribution proportions mapping
+                churn_counts = df['churn_prediction'].replace({1: 'Churn', 0: 'Stay'}).value_counts()
+                fig_pie = px.pie(values=churn_counts.values, names=churn_counts.index,
+                                 title="Overall Churn Distribution", hole=0.4,
+                                 color=churn_counts.index,
+                                 color_discrete_map={'Stay': '#28a745', 'Churn': '#dc3545'})
+                st.plotly_chart(fig_pie, use_container_width=True)
 
-                st.write("**Recent Logs:**")
-                st.dataframe(df.tail(10), use_container_width=True)
-            else:
-                st.info("Database is empty.")
-    except:
-        st.error("Make sure /predictions endpoint is active in your FastAPI.")
+            with col_scatter:
+                # Correlative analysis: Financial density vs Customer lifespan duration values mapping
+                fig_scatter = px.scatter(df, x="tenure", y="MonthlyCharges", color="churn_prediction",
+                                         title="Charges vs Tenure (Colored by Decision Outcome)",
+                                         labels={'churn_prediction': 'Churn (1=Yes)'},
+                                         color_continuous_scale=px.colors.diverging.RdYlGn_r)
+                st.plotly_chart(fig_scatter, use_container_width=True)
+
+            st.write("**Recent Audit Logs (Top 10):**")
+            st.dataframe(df, use_container_width=True)
+        else:
+            st.info("Database is initialized but contains empty history tables.")
+    else:
+        st.error(f"API Backend responded with unexpected operational status: {history_res.status_code}")
+except Exception as e:
+    st.warning("Unable to fetch operational metrics history. Ensure your FastAPI /predictions endpoint is online.")
