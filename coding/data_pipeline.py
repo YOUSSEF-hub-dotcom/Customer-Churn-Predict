@@ -49,15 +49,13 @@ def clean_and_preprocess_data(df):
     """
     Cleans missing values, standardizes categories, and handles feature engineering.
     """
-    logger.info("============ Cleaning Data ============")
+    logger.info("============ Cleaning Data & Preprocessing ============")
 
     logger.info("Number of duplicate rows:")
     logger.info(df.duplicated().sum()) 
 
     logger.info("Number of Missing Values:")
     print(df.isnull().sum()) 
-
-    logger.info("============ Data Preprocessing ============")
 
     # Handle TotalCharges numerical conversion and impute missing values using MonthlyCharges
     logger.info('Converting TotalCharges to numeric and filling missing values...')
@@ -95,14 +93,39 @@ def clean_and_preprocess_data(df):
         (df['StreamingTV'] == 'Yes').astype(int)
     )
 
+    return df
+
+
+def inspect_skew_and_outliers(df):
+    """
+    Performs a strict inspection on numerical features to discover Skewness 
+    and Outlier distributions before the alignment/modelling firewall phase.
+    NOTE: This is strictly for discovery and logging; actual mathematical transformations 
+    must be executed inside the model's firewall to prevent Data Leakage.
+    """
+    logger.info("============ Advanced Inspection: Skew & Outliers ============")
+    numerical_cols = ['tenure', 'MonthlyCharges', 'TotalCharges']
+    
+    for col in numerical_cols:
+        # Check Skewness
+        current_skew = df[col].skew()
+        
+        # Check Outliers using IQR boundaries globally just for understanding
+        Q1 = df[col].quantile(0.25)
+        Q3 = df[col].quantile(0.75)
+        IQR = Q3 - Q1
+        lower_bound = Q1 - 1.5 * IQR
+        upper_bound = Q3 + 1.5 * IQR
+        outliers_count = len(df[(df[col] < lower_bound) | (df[col] > upper_bound)])
+        
+        logger.info(f"Feature '{col}' -> Baseline Skewness: {current_skew:.4f} | Potential Outliers Count: {outliers_count}")
+
     # Logging final fully processed dataframe summary
     logger.info("Processed Dataset Preview:")
     print(df.head(20))
 
     logger.info("Final Data Types:")
     print(df.dtypes)
-
-    return df
 
 
 def run_data_pipeline(file_path):
@@ -111,9 +134,17 @@ def run_data_pipeline(file_path):
     """
     logger.info("============ Starting Data Pipeline ============")
 
+    # 1. Load Data
     df = load_data(file_path)
+    
+    # 2. Basic Metadata Overview
     basic_data_overview(df)
+    
+    # 3. Global Structural Cleaning and Feature Engineering
     df_processed = clean_and_preprocess_data(df)
+    
+    # 4. Smart Check/Inspection for Outliers & Skewness on Cleaned Data
+    inspect_skew_and_outliers(df_processed)
 
     logger.info("============ Data Pipeline Completed ============")
 
@@ -121,5 +152,8 @@ def run_data_pipeline(file_path):
 
 
 if __name__ == "__main__":
+    # Setup baseline tracking logger output configuration
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    
     FILE_PATH = r"C:\Users\Hedaya_city\Downloads\WA_Fn-UseC_-Telco-Customer-Churn.csv"
     df_final = run_data_pipeline(FILE_PATH)
