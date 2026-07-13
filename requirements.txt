@@ -1,0 +1,24 @@
+# ---- Core & Data Science ----
+pandas
+numpy
+catboost
+scikit-learn
+
+# ---- MLOps & Experiment Tracking ----
+mlflow
+joblib
+
+# ---- API & Backend ----
+fastapi
+uvicorn
+pydantic
+PyJWT
+slowapi
+SQLAlchemy
+
+# ---- Frontend & Dashboards ----
+streamlit
+requests
+plotly
+matplotlib
+seaborn
