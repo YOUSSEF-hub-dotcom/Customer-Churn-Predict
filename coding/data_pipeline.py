@@ -7,6 +7,7 @@ import logging
 # Initialize logger for tracking pipeline execution stages
 logger = logging.getLogger("Data_Pipeline")
 
+
 def load_data(file_path):
     """
     Loads the dataset from the given CSV file path.
@@ -128,6 +129,30 @@ def inspect_skew_and_outliers(df):
     print(df.dtypes)
 
 
+def analyze_spearman_correlations(df):
+    """
+    Computes and logs Spearman Rank Correlation to capture non-linear, monotonic
+    relationships between key features and the target variable (Churn).
+    """
+    logger.info("============ Advanced Analysis: Spearman Correlation ============")
+    
+    # Selecting core continuous, engineered, and target features
+    features_to_correlate = ['tenure', 'MonthlyCharges', 'TotalCharges', 'NumServices', 'Churn']
+    
+    # Calculate the Spearman correlation matrix
+    spearman_matrix = df[features_to_correlate].corr(method='spearman')
+    
+    # Print correlation values specifically relative to the target variable (Churn)
+    logger.info("Spearman Correlation scores with respect to Churn:")
+    print(spearman_matrix['Churn'].sort_values(ascending=False))
+    
+    # Note: Plt & Seaborn code for visual inspection can be run locally inside notebooks:
+    # plt.figure(figsize=(8, 6))
+    # sns.heatmap(spearman_matrix, annot=True, cmap='coolwarm', fmt=".2f")
+    # plt.title("Spearman Rank Correlation (Telco Churn)")
+    # plt.show()
+
+
 def run_data_pipeline(file_path):
     """
     Main orchestration function that runs the full sequential pipeline.
@@ -146,6 +171,9 @@ def run_data_pipeline(file_path):
     # 4. Smart Check/Inspection for Outliers & Skewness on Cleaned Data
     inspect_skew_and_outliers(df_processed)
 
+    # 5. Execute Spearman Rank Correlation Analysis
+    analyze_spearman_correlations(df_processed)
+
     logger.info("============ Data Pipeline Completed ============")
 
     return df_processed
@@ -155,5 +183,6 @@ if __name__ == "__main__":
     # Setup baseline tracking logger output configuration
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     
+    # Define file path for loading dataset
     FILE_PATH = r"C:\Users\Hedaya_city\Downloads\WA_Fn-UseC_-Telco-Customer-Churn.csv"
     df_final = run_data_pipeline(FILE_PATH)
